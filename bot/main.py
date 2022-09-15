@@ -7,7 +7,6 @@ import discord
 intent = discord.Intents.all()
 
 bot = commands.Bot(
-    debug_guilds=os.getenv("GUILDS").split(","),
     intent=intent
 )
 TOKEN = os.getenv('TOKEN')
@@ -26,11 +25,6 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: E
         await ctx.respond(content="このコマンドが呼ばれすぎています。少し時間が経ってからお試しください。", ephemeral=True)
     else:
         raise error
-
-
-# @bot.event
-# async def on_message(message: discord.Message):
-#     if message.channel.id in threads[message.guild.id]:
 
 
 dir = "cogs"
