@@ -2,6 +2,7 @@ from datetime import time
 import traceback
 from discord.ext import commands, tasks
 from discord import SlashCommandGroup, ApplicationContext, Permissions, TextChannel, Option, OptionChoice
+from discord.errors import NotFound
 from model.splamodel import StageStatus
 import joblib
 
@@ -14,7 +15,6 @@ class SplaCog(commands.Cog):
         self.embeds: dict[str, list[StageStatus]] = {}
         self.flg = True
         self.update.start()
-        self.sender.start()
 
     admin_command = SlashCommandGroup(
         name="setup",
@@ -31,22 +31,38 @@ class SplaCog(commands.Cog):
     )
 
     @commands.cooldown(rate=3, per=10, type=commands.BucketType.guild)
-    @admin_command.command(name="channel", description="２時間毎にこのチャンネルに対してステージ情報を受け取る設定を行います")
+    @admin_command.command(name="channel", description="２時間毎にこのチャンネルに対してステージ情報を受け取る設定を行います(1サーバー1チャンネルです）")
     async def set_channel(
         self,
         ctx: ApplicationContext,
     ):
-        data: dict = joblib.load(filename=GUILDS_FILE_NAME)
-        self.guilds: dict[int, TextChannel] = {
-            key: await self.bot.fetch_channel(value) for key, value in data.items()
-        }
-        await ctx.interaction.response.send_message(content="一定時間毎にこのチャネルに通知を行います(サーバー管理者のみ実行可能です）", embed=self.embeds[0])
+        await ctx.interaction.response.send_message(
+            content="一定時間毎にこのチャネルに通知を行います。（この設定は1サーバーにつき1チャネルのみ有効です。）",
+            embed=self.embeds[0]
+        )
         self.guilds[ctx.guild_id] = ctx.channel
         joblib.dump(
-            value={ctx.guild_id: ctx.channel_id},
+            value={guild_id: v.id for guild_id, v in self.guilds.items()},
             filename=GUILDS_FILE_NAME,
             compress=3
         )
+
+    @commands.cooldown(rate=3, per=10, type=commands.BucketType.guild)
+    @admin_command.command(name="lift", description="登録したチャネルを解除します。")
+    async def remove_channel(
+        self,
+        ctx: ApplicationContext,
+    ):
+        if ctx.guild_id in self.guilds:
+            self.guilds.pop(ctx.guild_id)
+            joblib.dump(
+                value={guild_id: v.id for guild_id, v in self.guilds.items()},
+                filename=GUILDS_FILE_NAME,
+                compress=3
+            )
+            await ctx.interaction.response.send_message(content="通知の登録の解除を行いました。")
+        else:
+            await ctx.interaction.response.send_message(content="まだ登録をしていないようです。")
 
     @commands.cooldown(rate=3, per=10, type=commands.BucketType.user)
     @stage_check.command(name="check", description="現在予定されているステージ情報を取得できます。")
@@ -78,29 +94,32 @@ class SplaCog(commands.Cog):
         except:
             print(traceback.format_exc())
 
+    @tasks.loop(time=[time(hour=h*2+1, minute=30) for h in range(12)])
+    async def sender(self):
+        for guild_id, channel in self.guilds.items():
+            try:
+                await channel.send(embed=self.embeds[1])
+            except NotFound:
+                self.guilds.pop(guild_id)
+            except:
+                print(traceback.format_exc())
+
     @update.before_loop
     async def _update(self):
         try:
             await self.bot.wait_until_ready()
             self.embeds = await StageStatus.getStageEmbeds()
             data: dict = joblib.load(filename=GUILDS_FILE_NAME)
-            self.guilds: dict[int, TextChannel] = {
-                key: await self.bot.fetch_channel(value) for key, value in data.items()
-            }
+            for key, value in data.items():
+                try:
+                    self.guilds: dict[int, TextChannel] = {
+                        key: await self.bot.fetch_channel(value)
+                    }
+                except NotFound:
+                    print(f"lost guild [{key}] channel [{value}]")
+            self.sender.start()
         except:
             print(traceback.format_exc())
-
-    @tasks.loop(time=[time(hour=h*2+1, minute=30) for h in range(12)])
-    async def sender(self):
-        try:
-            for channel in self.guilds.values():
-                await channel.send(embed=self.embeds[1])
-        except:
-            print(traceback.format_exc())
-
-    @sender.before_loop
-    async def _sender(self):
-        await self.bot.wait_until_ready()
 
 
 def setup(bot: commands.Bot):
