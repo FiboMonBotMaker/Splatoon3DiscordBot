@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  main:
+    build: .
+    volumes:
+      - ./bot:/usr/src/bot:rw
+    environment:
+      - TOKEN=${TOKEN}
+      - GUILDS=${GUILDS}
+      - USER_AGENT=${USER_AGENT}
+    tty: true
+    command: ["python3", "main.py"]
+    restart: always
