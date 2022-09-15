@@ -12,7 +12,8 @@ GUILDS_FILE_NAME = "./data/guild.dat"
 class SplaCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.bot: commands.Bot = bot
-        self.embeds: dict[str, list[StageStatus]] = {}
+        self.guilds: dict[int, TextChannel] = {}
+        self.embeds: list[StageStatus] = {}
         self.flg = True
         self.update.start()
 
@@ -109,7 +110,8 @@ class SplaCog(commands.Cog):
         try:
             await self.bot.wait_until_ready()
             self.embeds = await StageStatus.getStageEmbeds()
-            data: dict = joblib.load(filename=GUILDS_FILE_NAME)
+            self.sender.start()
+            data: dict[int, int] = joblib.load(filename=GUILDS_FILE_NAME)
             for key, value in data.items():
                 try:
                     self.guilds: dict[int, TextChannel] = {
@@ -117,7 +119,6 @@ class SplaCog(commands.Cog):
                     }
                 except NotFound:
                     print(f"lost guild [{key}] channel [{value}]")
-            self.sender.start()
         except:
             print(traceback.format_exc())
 

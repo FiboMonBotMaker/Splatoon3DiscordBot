@@ -8,5 +8,3 @@ class BaseEmbed(Embed):
             text="made by nikawamikan",
             icon_url="https://avatars.githubusercontent.com/u/66500373?s=100"
         )
-        self.set_thumbnail(
-            url="https://pbs.twimg.com/media/Fcp7mv-akAAIgTR?format=png&name=360x360")
